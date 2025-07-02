@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Sparkles, Loader2 } from "lucide-react";
-import { z } from "zod";
 
 import type { AppTask } from "@/lib/types";
 import { getPrioritizedTasks } from "@/app/actions";
@@ -14,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
 import { TaskForm, taskSchema } from "./task-form";
+import { z } from "zod";
 import TaskList from "./task-list";
 
 const initialTasks: AppTask[] = [
@@ -208,7 +208,7 @@ export default function TaskManager() {
           <div className="text-center py-16 px-4 border-2 border-dashed rounded-lg">
               <h3 className="text-xl font-medium text-muted-foreground">No tasks here!</h3>
               <p className="text-muted-foreground mt-2">
-                  {filter === 'completed' ? 'You haven\\'t completed any tasks yet.' : 'Get started by adding a new task.'}
+                  {filter === 'completed' ? "You haven't completed any tasks yet." : 'Get started by adding a new task.'}
               </p>
               <Button onClick={handleAddTask} className="mt-4 bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Plus className="mr-2 h-4 w-4" />
