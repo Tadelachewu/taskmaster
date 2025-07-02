@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 
 import { TaskForm, taskSchema } from "./task-form";
 import { z } from "zod";
@@ -128,8 +129,8 @@ export default function TaskManager() {
   
   const onFormSubmit = async (values: z.infer<typeof taskSchema>) => {
     const result = taskToEdit
-      ? await updateTask(taskToEdit.id, values)
-      : await addTask(values);
+      ? await updateTask(taskToEdit.id, { ...values, deadline: values.deadline.toISOString() })
+      : await addTask({ ...values, deadline: values.deadline.toISOString() });
 
     if (result.success) {
       toast({
@@ -186,7 +187,7 @@ export default function TaskManager() {
              </div>
           ) : tasks.length > 0 ? (
             <TaskList
-              tasks={tasks}
+              tasks={tasks.map(t => ({...t, deadline: new Date(t.deadline)}))}
               onEditTask={handleEditTask}
               onDeleteTask={handleDeleteConfirmation}
               onToggleComplete={handleToggleComplete}
