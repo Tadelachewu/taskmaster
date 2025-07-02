@@ -1,4 +1,12 @@
-import { selectTaskSchema } from '@/db/schema';
-import { z } from 'zod';
-
-export type AppTask = z.infer<typeof selectTaskSchema>;
+export type AppTask = {
+  id: string;
+  title: string;
+  description: string;
+  deadline: Date;
+  importance: 'low' | 'medium' | 'high';
+  predictedEffort: string;
+  completed: boolean;
+  priorityScore: number | null;
+  reasoning: string | null;
+  createdAt: Date;
+};
