@@ -1,7 +1,7 @@
 "use client";
 
 import { Pencil, Trash2, Info, Sparkles } from "lucide-react";
-import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 
 import type { AppTask } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,7 @@ export default function TaskCard({ task, onEdit, onDelete, onToggleComplete }: T
     low: "outline",
   } as const;
   
-  const deadlineDate = parseISO(task.deadline);
+  const deadlineDate = task.deadline;
 
   return (
     <Card className={cn(
@@ -38,7 +38,7 @@ export default function TaskCard({ task, onEdit, onDelete, onToggleComplete }: T
             <CardTitle className={cn("text-lg font-semibold leading-snug", task.completed && "line-through text-muted-foreground")}>
                 {task.title}
             </CardTitle>
-            {task.priorityScore !== undefined && (
+            {task.priorityScore !== undefined && task.priorityScore !== null && (
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
