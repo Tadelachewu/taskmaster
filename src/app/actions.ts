@@ -1,3 +1,4 @@
+
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -8,7 +9,20 @@ import type { AppTask } from "@/lib/types";
 
 export async function getTasks(filter: "all" | "active" | "completed") {
   try {
-    let query = 'SELECT * FROM tasks';
+    let query = `
+      SELECT 
+        id, 
+        title, 
+        description, 
+        deadline, 
+        importance, 
+        predicted_effort AS "predictedEffort", 
+        completed, 
+        priority_score AS "priorityScore", 
+        reasoning, 
+        created_at AS "createdAt" 
+      FROM tasks
+    `;
     const params = [];
 
     if (filter === "active") {
