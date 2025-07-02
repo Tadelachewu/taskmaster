@@ -1,59 +1,22 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Plus, Sparkles, Loader2 } from "lucide-react";
 
 import type { AppTask } from "@/lib/types";
-import { getPrioritizedTasks } from "@/app/actions";
+import { getTasks, addTask, updateTask, deleteTask, toggleTaskComplete, getPrioritizedTasks } from "@/app/actions";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
 import { TaskForm, taskSchema } from "./task-form";
 import { z } from "zod";
 import TaskList from "./task-list";
+import { Skeleton } from "./ui/skeleton";
 
-const initialTasks: AppTask[] = [
-  {
-    id: 'task-1',
-    title: 'Design the new logo',
-    description: 'Create a modern and fresh logo for the brand refresh. Explore 3-4 different concepts.',
-    deadline: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString(),
-    importance: 'high',
-    predictedEffort: '3 days',
-    completed: false,
-  },
-  {
-    id: 'task-2',
-    title: 'Develop the landing page',
-    description: 'Code the new landing page based on the approved Figma designs. Ensure it is fully responsive.',
-    deadline: new Date(new Date().setDate(new Date().getDate() + 14)).toISOString(),
-    importance: 'high',
-    predictedEffort: '5 days',
-    completed: false,
-  },
-  {
-    id: 'task-3',
-    title: 'Write blog post about Q2 updates',
-    description: 'Draft a blog post summarizing the key product updates and achievements from the second quarter.',
-    deadline: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString(),
-    importance: 'medium',
-    predictedEffort: '1 day',
-    completed: true,
-  },
-  {
-    id: 'task-4',
-    title: 'Update user documentation',
-    description: 'Review and update the help articles and tutorials for the new features released.',
-    deadline: new Date(new Date().setDate(new Date().getDate() + 20)).toISOString(),
-    importance: 'low',
-    predictedEffort: '4 hours',
-    completed: false,
-  },
-];
 
 export default function TaskManager() {
   const [tasks, setTasks] = useState<AppTask[]>([]);
@@ -63,13 +26,28 @@ export default function TaskManager() {
   const [taskToEdit, setTaskToEdit] = useState<AppTask | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [isPrioritizing, setIsPrioritizing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const { toast } = useToast();
 
+  const fetchTasks = useCallback(async () => {
+    setIsLoading(true);
+    const result = await getTasks(filter);
+    if (result.success && result.data) {
+      setTasks(result.data);
+    } else {
+      toast({
+        title: "Error fetching tasks",
+        description: result.error,
+        variant: "destructive",
+      });
+    }
+    setIsLoading(false);
+  }, [filter, toast]);
+
   useEffect(() => {
-    // Simulate loading tasks from a source
-    setTasks(initialTasks);
-  }, []);
+    fetchTasks();
+  }, [fetchTasks]);
 
   const handleAddTask = () => {
     setTaskToEdit(null);
@@ -86,47 +64,58 @@ export default function TaskManager() {
     setIsAlertOpen(true);
   };
 
-  const handleDeleteTask = () => {
+  const handleDeleteTask = async () => {
     if (!taskToDelete) return;
-    setTasks(tasks.filter((task) => task.id !== taskToDelete));
-    toast({ title: "Task Deleted", description: "The task has been successfully removed." });
+    const result = await deleteTask(taskToDelete);
+    if (result.success) {
+      toast({ title: "Task Deleted", description: "The task has been successfully removed." });
+      await fetchTasks();
+    } else {
+      toast({ title: "Error", description: result.error, variant: "destructive" });
+    }
     setIsAlertOpen(false);
     setTaskToDelete(null);
   };
 
-  const handleToggleComplete = (taskId: string, completed: boolean) => {
-    setTasks(
-      tasks.map((task) =>
-        task.id === taskId ? { ...task, completed } : task
-      )
-    );
+  const handleToggleComplete = async (taskId: string, completed: boolean) => {
+    const result = await toggleTaskComplete(taskId, completed);
+    if (result.success) {
+      await fetchTasks();
+    } else {
+      toast({ title: "Error", description: result.error, variant: "destructive" });
+    }
   };
 
   const handlePrioritize = async () => {
     setIsPrioritizing(true);
-    const nonPrioritizedTasks = tasks.map(({id, completed, priorityScore, reasoning, ...task}) => task);
-    const result = await getPrioritizedTasks(nonPrioritizedTasks);
-    
-    if (result.success && result.data) {
-      const prioritizedData = new Map(result.data.map(p => [p.title, p]));
-      
-      const updatedTasks = tasks.map(task => {
-        const pTask = prioritizedData.get(task.title);
-        if (pTask) {
-          return { ...task, ...pTask };
-        }
-        return task;
+    const tasksToPrioritize = tasks
+      .filter(t => !t.completed)
+      .map(({ title, description, deadline, importance, predictedEffort }) => ({
+        title,
+        description,
+        deadline: deadline.toISOString(),
+        importance,
+        predictedEffort,
+      }));
+
+    if (tasksToPrioritize.length === 0) {
+      toast({
+        title: "No Active Tasks",
+        description: "There are no active tasks to prioritize.",
       });
+      setIsPrioritizing(false);
+      return;
+    }
 
-      // Sort by priority score, highest first
-      updatedTasks.sort((a, b) => (b.priorityScore ?? 0) - (a.priorityScore ?? 0));
-      setTasks(updatedTasks);
-
+    const result = await getPrioritizedTasks(tasksToPrioritize);
+    
+    if (result.success) {
       toast({
         title: "Tasks Prioritized!",
         description: "Your tasks have been intelligently re-ordered.",
         className: "bg-primary text-primary-foreground",
       });
+      await fetchTasks();
     } else {
       toast({
         title: "Prioritization Failed",
@@ -137,42 +126,30 @@ export default function TaskManager() {
     setIsPrioritizing(false);
   };
   
-  const onFormSubmit = (values: z.infer<typeof taskSchema>) => {
-    if (taskToEdit) {
-      setTasks(
-        tasks.map((task) =>
-          task.id === taskToEdit.id ? { ...task, ...values, deadline: values.deadline.toISOString() } : task
-        )
-      );
-      toast({ title: "Task Updated", description: "Your changes have been saved." });
+  const onFormSubmit = async (values: z.infer<typeof taskSchema>) => {
+    const result = taskToEdit
+      ? await updateTask(taskToEdit.id, values)
+      : await addTask(values);
+
+    if (result.success) {
+      toast({
+        title: taskToEdit ? "Task Updated" : "Task Created",
+        description: taskToEdit ? "Your changes have been saved." : "A new task has been added to your list.",
+      });
+      setIsFormOpen(false);
+      setTaskToEdit(null);
+      await fetchTasks();
     } else {
-      const newTask: AppTask = {
-        id: `task-${Date.now()}`,
-        ...values,
-        deadline: values.deadline.toISOString(),
-        completed: false,
-      };
-      setTasks([newTask, ...tasks]);
-      toast({ title: "Task Created", description: "A new task has been added to your list." });
+      toast({ title: "Error", description: result.error, variant: "destructive" });
     }
-    setIsFormOpen(false);
-    setTaskToEdit(null);
   };
   
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      if (filter === "active") return !task.completed;
-      if (filter === "completed") return task.completed;
-      return true;
-    });
-  }, [tasks, filter]);
-
   return (
     <div className="space-y-6">
       <header className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <h1 className="text-3xl font-bold text-center sm:text-left text-foreground font-headline">Task Master</h1>
         <div className="flex items-center gap-2">
-          <Button onClick={handlePrioritize} disabled={isPrioritizing} variant="outline">
+          <Button onClick={handlePrioritize} disabled={isPrioritizing || isLoading} variant="outline">
             {isPrioritizing ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -187,35 +164,47 @@ export default function TaskManager() {
         </div>
       </header>
 
-      <div>
-        <Tabs value={filter} onValueChange={(value) => setFilter(value as any)}>
-          <TabsList>
-            <TabsTrigger value="all">All Tasks</TabsTrigger>
-            <TabsTrigger value="active">Active</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-      
-      <TaskList
-        tasks={filteredTasks}
-        onEditTask={handleEditTask}
-        onDeleteTask={handleDeleteConfirmation}
-        onToggleComplete={handleToggleComplete}
-      />
-      
-      {filteredTasks.length === 0 && (
-          <div className="text-center py-16 px-4 border-2 border-dashed rounded-lg">
+      <Tabs value={filter} onValueChange={(value) => setFilter(value as any)}>
+        <TabsList>
+          <TabsTrigger value="all">All Tasks</TabsTrigger>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="completed">Completed</TabsTrigger>
+        </TabsList>
+        <div className="mt-4">
+          {isLoading ? (
+             <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
+                    <CardContent className="space-y-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-5/6" />
+                    </CardContent>
+                    <CardFooter><Skeleton className="h-8 w-1/2" /></CardFooter>
+                  </Card>
+                ))}
+             </div>
+          ) : tasks.length > 0 ? (
+            <TaskList
+              tasks={tasks}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteConfirmation}
+              onToggleComplete={handleToggleComplete}
+            />
+          ) : (
+            <div className="text-center py-16 px-4 border-2 border-dashed rounded-lg">
               <h3 className="text-xl font-medium text-muted-foreground">No tasks here!</h3>
               <p className="text-muted-foreground mt-2">
-                  {filter === 'completed' ? "You haven't completed any tasks yet." : 'Get started by adding a new task.'}
+                {filter === 'completed' ? "You haven't completed any tasks yet." : 'Get started by adding a new task.'}
               </p>
               <Button onClick={handleAddTask} className="mt-4 bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Your First Task
               </Button>
-          </div>
-      )}
+            </div>
+          )}
+        </div>
+      </Tabs>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-[425px]">

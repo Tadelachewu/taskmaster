@@ -1,11 +1,4 @@
-import type { PrioritizedTask } from "@/ai/flows/intelligent-task-prioritization";
+import { selectTaskSchema } from '@/db/schema';
+import { z } from 'zod';
 
-export type AppTask = Partial<Omit<PrioritizedTask, 'deadline'>> & {
-  id: string;
-  title: string;
-  description: string;
-  deadline: string; // Keep as string for form compatibility
-  importance: "high" | "medium" | "low";
-  predictedEffort: string;
-  completed: boolean;
-};
+export type AppTask = z.infer<typeof selectTaskSchema>;
