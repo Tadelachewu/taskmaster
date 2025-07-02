@@ -2,15 +2,13 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Sparkles, Loader2 } from "lucide-react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import type { AppTask } from "@/lib/types";
 import { getPrioritizedTasks } from "@/app/actions";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -143,7 +141,7 @@ export default function TaskManager() {
     if (taskToEdit) {
       setTasks(
         tasks.map((task) =>
-          task.id === taskToEdit.id ? { ...task, ...values } : task
+          task.id === taskToEdit.id ? { ...task, ...values, deadline: values.deadline.toISOString() } : task
         )
       );
       toast({ title: "Task Updated", description: "Your changes have been saved." });
@@ -151,6 +149,7 @@ export default function TaskManager() {
       const newTask: AppTask = {
         id: `task-${Date.now()}`,
         ...values,
+        deadline: values.deadline.toISOString(),
         completed: false,
       };
       setTasks([newTask, ...tasks]);
@@ -209,7 +208,7 @@ export default function TaskManager() {
           <div className="text-center py-16 px-4 border-2 border-dashed rounded-lg">
               <h3 className="text-xl font-medium text-muted-foreground">No tasks here!</h3>
               <p className="text-muted-foreground mt-2">
-                  {filter === 'completed' ? 'You haven\'t completed any tasks yet.' : 'Get started by adding a new task.'}
+                  {filter === 'completed' ? 'You haven\\'t completed any tasks yet.' : 'Get started by adding a new task.'}
               </p>
               <Button onClick={handleAddTask} className="mt-4 bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Plus className="mr-2 h-4 w-4" />
