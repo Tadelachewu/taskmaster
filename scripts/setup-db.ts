@@ -50,7 +50,7 @@ async function setupDatabase() {
         await client.query(statement);
     }
 
-    console.log('✅ Database setup complete. All tables and functions have been created.');
+    console.log('✅ Database setup complete. All tables have been created.');
   } catch (error) {
     console.error('❌ Error setting up the database:', error);
     // Suggest common issues

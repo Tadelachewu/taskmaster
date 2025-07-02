@@ -2,42 +2,46 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { tasks, insertTaskSchema } from "@/db/schema";
 import { prioritizeTasks, type Task } from "@/ai/flows/intelligent-task-prioritization";
-import { eq, desc, not } from "drizzle-orm";
 import { z } from "zod";
+import type { AppTask } from "@/lib/types";
 
 export async function getTasks(filter: "all" | "active" | "completed") {
   try {
-    const whereCondition =
-      filter === "active"
-        ? not(tasks.completed)
-        : filter === "completed"
-        ? eq(tasks.completed, true)
-        : undefined;
+    let query = 'SELECT * FROM tasks';
+    const params = [];
 
-    const allTasks = await db.query.tasks.findMany({
-      where: whereCondition,
-      orderBy: [desc(tasks.priorityScore), desc(tasks.createdAt)],
-    });
-    return { success: true, data: allTasks };
+    if (filter === "active") {
+      query += ' WHERE completed = false';
+    } else if (filter === "completed") {
+      query += ' WHERE completed = true';
+    }
+
+    query += ' ORDER BY priority_score DESC NULLS LAST, created_at DESC';
+
+    const result = await db.query(query, params);
+    return { success: true, data: result.rows as AppTask[] };
   } catch (error) {
     console.error("Error fetching tasks:", error);
     return { success: false, error: "Failed to fetch tasks." };
   }
 }
 
-const AddTaskSchema = insertTaskSchema.omit({
-  id: true,
-  completed: true,
-  priorityScore: true,
-  reasoning: true,
-  createdAt: true,
+const AddTaskSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  deadline: z.string(),
+  importance: z.enum(['low', 'medium', 'high']),
+  predictedEffort: z.string(),
 });
 
 export async function addTask(values: z.infer<typeof AddTaskSchema>) {
   try {
-    await db.insert(tasks).values(values);
+    const { title, description, deadline, importance, predictedEffort } = values;
+    await db.query(
+      'INSERT INTO tasks (title, description, deadline, importance, predicted_effort) VALUES ($1, $2, $3, $4, $5)',
+      [title, description, deadline, importance, predictedEffort]
+    );
     revalidatePath("/");
     return { success: true };
   } catch (error) {
@@ -46,17 +50,21 @@ export async function addTask(values: z.infer<typeof AddTaskSchema>) {
   }
 }
 
-const UpdateTaskSchema = insertTaskSchema.pick({
-    title: true,
-    description: true,
-    deadline: true,
-    importance: true,
-    predictedEffort: true,
+const UpdateTaskSchema = z.object({
+    title: z.string(),
+    description: z.string(),
+    deadline: z.string(),
+    importance: z.enum(['low', 'medium', 'high']),
+    predictedEffort: z.string(),
 });
 
 export async function updateTask(taskId: string, values: z.infer<typeof UpdateTaskSchema>) {
   try {
-    await db.update(tasks).set(values).where(eq(tasks.id, taskId));
+    const { title, description, deadline, importance, predictedEffort } = values;
+    await db.query(
+        'UPDATE tasks SET title = $1, description = $2, deadline = $3, importance = $4, predicted_effort = $5 WHERE id = $6',
+        [title, description, deadline, importance, predictedEffort, taskId]
+    );
     revalidatePath("/");
     return { success: true };
   } catch (error) {
@@ -67,7 +75,7 @@ export async function updateTask(taskId: string, values: z.infer<typeof UpdateTa
 
 export async function deleteTask(taskId: string) {
   try {
-    await db.delete(tasks).where(eq(tasks.id, taskId));
+    await db.query('DELETE FROM tasks WHERE id = $1', [taskId]);
     revalidatePath("/");
     return { success: true };
   } catch (error) {
@@ -78,7 +86,7 @@ export async function deleteTask(taskId: string) {
 
 export async function toggleTaskComplete(taskId: string, completed: boolean) {
   try {
-    await db.update(tasks).set({ completed }).where(eq(tasks.id, taskId));
+    await db.query('UPDATE tasks SET completed = $1 WHERE id = $2', [completed, taskId]);
     revalidatePath("/");
     return { success: true };
   } catch (error) {
@@ -92,12 +100,10 @@ export async function getPrioritizedTasks(tasksToPrioritize: Task[]) {
     const prioritizedTasks = await prioritizeTasks(tasksToPrioritize);
     
     const promises = prioritizedTasks.map(pTask => {
-      return db.update(tasks)
-        .set({
-          priorityScore: pTask.priorityScore,
-          reasoning: p.reasoning,
-        })
-        .where(eq(tasks.title, pTask.title));
+      return db.query(
+        'UPDATE tasks SET priority_score = $1, reasoning = $2 WHERE title = $3',
+        [pTask.priorityScore, pTask.reasoning, pTask.title]
+      );
     });
     await Promise.all(promises);
 
